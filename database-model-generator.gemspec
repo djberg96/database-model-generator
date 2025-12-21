@@ -22,6 +22,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency('rspec', '~> 3.12')
   spec.add_development_dependency('ruby-oci8', '~> 2.2')
   spec.add_development_dependency('tiny_tds', '~> 3.2.1')
+  spec.add_development_dependency('pg', '~> 1.5')
 
   # Again, I only set this as a development dependency mainly as a reminder.
   # The version you need will depend on which version of Rails you're using.
@@ -29,7 +30,7 @@ Gem::Specification.new do |spec|
 
   spec.description = <<-EOF
     The database-model-generator library allows you to generate an ActiveRecord
-    model from an existing Oracle table or view, as well as automatically
-    generate a baseline test file for test-unit or minitest.
+    model from an existing Oracle, SQL Server, or PostgreSQL table or view,
+    as well as automatically generate a baseline test file for test-unit or minitest.
   EOF
 end

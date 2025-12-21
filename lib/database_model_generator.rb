@@ -10,6 +10,12 @@ rescue LoadError
   # TinyTDS not available - SQL Server support will be disabled
 end
 
+begin
+  require 'pg'
+rescue LoadError
+  # pg not available - PostgreSQL support will be disabled
+end
+
 module DatabaseModel
   module Generator
     # The version of the database-model-generator library
@@ -26,6 +32,9 @@ module DatabaseModel
       when :sqlserver
         require_relative 'sqlserver/model/generator'
         SqlServer::Model::Generator.new(connection)
+      when :postgresql
+        require_relative 'postgresql/model/generator'
+        Postgresql::Model::Generator.new(connection)
       else
         raise ArgumentError, "Unsupported database type: #{database_type}"
       end
@@ -41,6 +50,8 @@ module DatabaseModel
         :oracle
       when 'TinyTds::Client'
         :sqlserver
+      when 'PG::Connection'
+        :postgresql
       else
         raise ArgumentError, "Cannot detect database type from connection: #{connection.class}"
       end

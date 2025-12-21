@@ -1,0 +1,51 @@
+services:
+  # PostgreSQL database for testing
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: dmg_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=test_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - dmg_network
+
+  # Optional: Add a container to test the generator
+  dmg_test:
+    build:
+      context: ../../
+      dockerfile: docker/postgresql/test-Dockerfile
+    container_name: dmg_test_runner
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    volumes:
+      - ../../:/app
+    working_dir: /app
+    environment:
+      - POSTGRES_HOST=postgres-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DATABASE=test_db
+    networks:
+      - dmg_network
+    command: ["./docker/postgresql/test.sh"]
+
+volumes:
+  postgres_data:
+
+networks:
+  dmg_network:
+    driver: bridge
