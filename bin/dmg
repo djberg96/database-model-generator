@@ -380,10 +380,10 @@ File.open(ofile, 'w') do |fh|
     # Character fields, size
     omg.column_info.each{ |col|
 
-      data_type = col.data_type.to_s
+      data_type = col.data_type.to_s.downcase
 
       case data_type
-        when 'char', 'varchar', 'varchar2'
+        when 'char', 'varchar', 'varchar2', 'character varying', 'text', 'bpchar'
           validation = "validates :#{col.name.downcase}, "
           validation << ":length => {:maximum => #{col.data_size}}"
 
@@ -398,26 +398,55 @@ File.open(ofile, 'w') do |fh|
           validation << format_str
           validation << ",\n    :presence => #{!col.nullable?}" unless col.nullable?
           validation << "\n\n"
-        when 'number'
-          max = "9" * col.precision
-          max.insert(col.precision - col.scale, ".") if col.scale > 0
+        when 'number', 'integer', 'bigint', 'smallint', 'numeric', 'decimal', 'real', 'double precision'
+          # For PostgreSQL numeric types
+          if ['integer', 'bigint', 'smallint'].include?(data_type)
+            # Integer types
+            max = case data_type
+                  when 'smallint' then 32767
+                  when 'integer' then 2147483647
+                  when 'bigint' then 9223372036854775807
+                  end
 
-          validation = "\n  validates :#{col.name.downcase}"
+            validation = "\n  validates :#{col.name.downcase}"
 
-          unless col.nullable?
-            validation << ", :presence => #{!col.nullable?}"
-          end
-
-          unless max.empty?
-            validation << ", :numericality => {"
-            validation << "\n    :less_than_or_equal_to => #{max}, "
-            validation << "\n    :greater_than_or_equal_to => -#{max}"
-
-            if col.scale == 0
-              validation << ",\n    :only_integer => true"
+            unless col.nullable?
+              validation << ", :presence => #{!col.nullable?}"
             end
 
-            validation << "\n  }\n\n"
+            if max
+              validation << ", :numericality => {"
+              validation << "\n    :less_than_or_equal_to => #{max}, "
+              validation << "\n    :greater_than_or_equal_to => -#{max},"
+              validation << "\n    :only_integer => true"
+              validation << "\n  }\n\n"
+            end
+          elsif data_type == 'number' || ['numeric', 'decimal', 'real', 'double precision'].include?(data_type)
+            # Oracle NUMBER or PostgreSQL decimal types
+            validation = "\n  validates :#{col.name.downcase}"
+
+            unless col.nullable?
+              validation << ", :presence => #{!col.nullable?}"
+            end
+
+            if col.respond_to?(:precision) && col.precision
+              max = "9" * col.precision
+              max.insert(col.precision - (col.scale || 0), ".") if col.scale && col.scale > 0
+
+              unless max.empty?
+                validation << ", :numericality => {"
+                validation << "\n    :less_than_or_equal_to => #{max}, "
+                validation << "\n    :greater_than_or_equal_to => -#{max}"
+
+                if col.scale == 0
+                  validation << ",\n    :only_integer => true"
+                end
+
+                validation << "\n  }\n\n"
+              end
+            else
+              validation << ", :numericality => true\n\n"
+            end
           end
 
       end
@@ -431,23 +460,20 @@ File.open(ofile, 'w') do |fh|
 
   # Date fields
   omg.column_info.each{ |col|
-    data_type = col.data_type.to_s
+    data_type = col.data_type.to_s.downcase
 
-    if ['date', 'time', 'datetime'].include?(data_type)
+    if ['date', 'time', 'datetime', 'timestamp', 'timestamp without time zone', 'timestamp with time zone', 'time without time zone', 'time with time zone'].include?(data_type)
       if data_type == 'date'
         validation = "validates_date :#{col.name.downcase}"
-      end
-
-      if data_type == 'timestamp'
+      elsif data_type =~ /^time/
         validation = "validates_time :#{col.name.downcase}"
-      end
-
-      if data_type == 'datetime'
+      elsif data_type =~ /timestamp|datetime/
         validation = "validates_datetime :#{col.name.downcase}"
       end
 
       unless header_printed
         fh.puts "  # Requires the validates_timeliness library"
+        header_printed = true
       end
 
       fh.puts "  #{validation}"
