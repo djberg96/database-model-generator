@@ -40,9 +40,9 @@ def help
     -u, --user     => The username used to establish a connection to the database.
     -p, --password => The password used to establish a connection to the database.
     -d, --database => The name of the database to connect to.
-    -s, --server   => The database server hostname (for SQL Server).
-    -P, --port     => The database server port (default: 1433 for SQL Server).
-    -T, --type     => Database type: 'oracle' or 'sqlserver' (auto-detected if not specified).
+    -s, --server   => The database server hostname (for SQL Server and PostgreSQL).
+    -P, --port     => The database server port (default: 1433 for SQL Server, 5432 for PostgreSQL).
+    -T, --type     => Database type: 'oracle', 'sqlserver', or 'postgresql' (auto-detected if not specified).
     -r, --rails    => The version of rails you're using (2 or higher).
     -x, --tests    => Generate tests using testunit, minitest or rspec.
     -c, --class    => Class name for the generated table (optional)
@@ -55,13 +55,18 @@ def help
     SQL Server:
     dmg -T sqlserver -s localhost -P 1433 -d mydb -u sa -p password -t users
 
+    PostgreSQL (password optional):
+    dmg -T postgresql -s localhost -d mydb -u postgres -t users
+    dmg -T postgresql -s localhost -d mydb -u postgres -p password -t users
+
     Auto-detection (Oracle if no server specified, SQL Server if server specified):
     dmg -d localhost:1521/XE -u scott -p tiger -t users        # Oracle
     dmg -s localhost -d mydb -u sa -p password -t users        # SQL Server
 
-    If no user or password are supplied, then the generator will attempt to glean that
-    information using a combination of the database name and your .dbrc file.
-    If that cannot be found, then an error is raised.
+    If no user is supplied, an error is raised. For PostgreSQL, password is optional
+    if pg_hba.conf is configured for trust authentication. For Oracle and SQL Server,
+    if no password is supplied, the generator will attempt to find credentials in your
+    .dbrc file using the dbi-dbrc library.
 
     If no output file is supplied then the file generated will match the name
     of the table, minus the 's' if present, with a .rb extension. This is lazy,
@@ -124,19 +129,26 @@ unless ['postgresql', 'oracle', 'sqlserver'].include?(database_type)
   exit!
 end
 
-unless user && pass
+unless user
+  puts "You must specify a user with the -u option."
+  exit!
+end
+
+# For PostgreSQL, password is optional (can use pg_hba.conf trust authentication)
+# For Oracle and SQL Server, password is required unless using dbrc
+unless pass || database_type == 'postgresql'
   begin
     dbrc = DBI::DBRC.new(opts['database'], user)
     user = dbrc.user
     pass = dbrc.passwd
   rescue NameError
-    msg = "If you do not specify a username or password on the command line "
+    msg = "If you do not specify a password on the command line "
     msg << "then you must use the dbi-dbrc library and create a .dbrc file in "
     msg << "your home directory."
     puts msg
     exit!
   rescue DBI::DBRC::Error
-    msg = "No user or password provided, and no dbrc entry found for '"
+    msg = "No password provided, and no dbrc entry found for '"
     msg << opts['database'] + "'."
     puts msg
     exit!
@@ -170,6 +182,20 @@ begin
       port: port.to_i,
       database: opts['database']
     )
+  when 'postgresql'
+    require 'pg'
+    server = opts['server'] || 'localhost'
+    port = opts['port'] || 5432
+
+    conn_params = {
+      host: server,
+      port: port.to_i,
+      dbname: opts['database'],
+      user: user
+    }
+    conn_params[:password] = pass if pass
+
+    connection = PG.connect(conn_params)
   end
 rescue LoadError => e
   case database_type
@@ -177,6 +203,8 @@ rescue LoadError => e
     puts "Oracle support requires the 'oci8' gem. Install with: gem install oci8"
   when 'sqlserver'
     puts "SQL Server support requires the 'tiny_tds' gem. Install with: gem install tiny_tds"
+  when 'postgresql'
+    puts "PostgreSQL support requires the 'pg' gem. Install with: gem install pg"
   end
   exit!
 rescue => e
