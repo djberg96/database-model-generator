@@ -306,13 +306,15 @@ RSpec.describe Postgresql::Model::Generator do
 
   describe '#disconnect' do
     it 'closes the database connection' do
-      test_conn = PG.connect(
+      conn_params = {
         host: ENV['POSTGRES_HOST'] || 'localhost',
         port: ENV['POSTGRES_PORT'] || '5432',
         dbname: ENV['POSTGRES_DATABASE'] || 'test_db',
-        user: ENV['POSTGRES_USER'] || 'postgres',
-        password: ENV['POSTGRES_PASSWORD'] || 'postgres'
-      )
+        user: ENV['POSTGRES_USER'] || 'postgres'
+      }
+      conn_params[:password] = ENV['POSTGRES_PASSWORD'] if ENV['POSTGRES_PASSWORD']
+
+      test_conn = PG.connect(conn_params)
 
       test_gen = described_class.new(test_conn)
       test_gen.disconnect

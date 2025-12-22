@@ -9,15 +9,17 @@ RSpec.shared_context 'PostgreSQL connection' do
       port = ENV['POSTGRES_PORT'] || '5432'
       database = ENV['POSTGRES_DATABASE'] || 'test_db'
       user = ENV['POSTGRES_USER'] || 'postgres'
-      password = ENV['POSTGRES_PASSWORD'] || 'postgres'
+      password = ENV['POSTGRES_PASSWORD']
 
-      PG.connect(
+      conn_params = {
         host: host,
         port: port,
         dbname: database,
-        user: user,
-        password: password
-      )
+        user: user
+      }
+      conn_params[:password] = password if password
+
+      PG.connect(conn_params)
     rescue PG::Error => e
       warn "Database connection failed: #{e.message}"
       warn "Make sure PostgreSQL database is running and accessible"

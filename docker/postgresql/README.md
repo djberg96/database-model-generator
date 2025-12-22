@@ -41,7 +41,7 @@ The following environment variables are available:
 - `POSTGRES_HOST`: PostgreSQL host (default: postgres-db)
 - `POSTGRES_PORT`: PostgreSQL port (default: 5432)
 - `POSTGRES_USER`: PostgreSQL username (default: postgres)
-- `POSTGRES_PASSWORD`: PostgreSQL password (default: postgres)
+- `POSTGRES_PASSWORD`: PostgreSQL password (optional, omit if using trust authentication)
 - `POSTGRES_DATABASE`: PostgreSQL database name (default: test_db)
 
 ## Sample Database

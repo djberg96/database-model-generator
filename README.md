@@ -23,7 +23,7 @@ Using the command line tool:
 `dmg -T sqlserver -s localhost -d your_database -t locations -u sa -p your_password`
 
 ### PostgreSQL:
-`dmg -T postgresql -h localhost -d your_database -t locations -u postgres -p your_password`
+`dmg -T postgresql -h localhost -d your_database -t locations -u postgres [-p password]`
 
 ### Auto-detection:
 # Oracle (default)

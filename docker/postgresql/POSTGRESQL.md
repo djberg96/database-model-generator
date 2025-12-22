@@ -34,10 +34,13 @@ gem install pg
 
 ```bash
 # Using explicit database type
-dmg -T postgresql -h localhost -d your_database -t users -u postgres -p your_password
+dmg -T postgresql -h localhost -d your_database -t users -u postgres [-p password]
 
 # Using auto-detection (if connection parameters indicate PostgreSQL)
-dmg -h localhost -d your_database -t users -u postgres -p your_password
+dmg -h localhost -d your_database -t users -u postgres [-p password]
+
+# Password is optional if pg_hba.conf is configured for trust authentication
+dmg -T postgresql -h localhost -d your_database -t users -u postgres
 ```
 
 ### Programmatically
@@ -47,12 +50,13 @@ require 'pg'
 require 'database_model_generator'
 
 # Connect to PostgreSQL
+# Note: password is optional if pg_hba.conf allows trust authentication
 conn = PG.connect(
   host: 'localhost',
   port: 5432,
   dbname: 'your_database',
-  user: 'postgres',
-  password: 'your_password'
+  user: 'postgres'
+  # password: 'your_password'  # Only needed if authentication is required
 )
 
 # Create a generator instance
