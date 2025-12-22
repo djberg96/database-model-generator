@@ -40,9 +40,9 @@ def help
     -u, --user     => The username used to establish a connection to the database.
     -p, --password => The password used to establish a connection to the database.
     -d, --database => The name of the database to connect to.
-    -s, --server   => The database server hostname (for SQL Server).
-    -P, --port     => The database server port (default: 1433 for SQL Server).
-    -T, --type     => Database type: 'oracle' or 'sqlserver' (auto-detected if not specified).
+    -s, --server   => The database server hostname (for SQL Server and PostgreSQL).
+    -P, --port     => The database server port (default: 1433 for SQL Server, 5432 for PostgreSQL).
+    -T, --type     => Database type: 'oracle', 'sqlserver', or 'postgresql' (auto-detected if not specified).
     -r, --rails    => The version of rails you're using (2 or higher).
     -x, --tests    => Generate tests using testunit, minitest or rspec.
     -c, --class    => Class name for the generated table (optional)
@@ -55,13 +55,18 @@ def help
     SQL Server:
     dmg -T sqlserver -s localhost -P 1433 -d mydb -u sa -p password -t users
 
+    PostgreSQL (password optional):
+    dmg -T postgresql -s localhost -d mydb -u postgres -t users
+    dmg -T postgresql -s localhost -d mydb -u postgres -p password -t users
+
     Auto-detection (Oracle if no server specified, SQL Server if server specified):
     dmg -d localhost:1521/XE -u scott -p tiger -t users        # Oracle
     dmg -s localhost -d mydb -u sa -p password -t users        # SQL Server
 
-    If no user or password are supplied, then the generator will attempt to glean that
-    information using a combination of the database name and your .dbrc file.
-    If that cannot be found, then an error is raised.
+    If no user is supplied, an error is raised. For PostgreSQL, password is optional
+    if pg_hba.conf is configured for trust authentication. For Oracle and SQL Server,
+    if no password is supplied, the generator will attempt to find credentials in your
+    .dbrc file using the dbi-dbrc library.
 
     If no output file is supplied then the file generated will match the name
     of the table, minus the 's' if present, with a .rb extension. This is lazy,
@@ -110,6 +115,7 @@ pass = opts['password']
 
 # Determine database type
 database_type = opts['type']&.downcase
+
 unless database_type
   if opts['server'] || opts['port']
     database_type = 'sqlserver'
@@ -118,24 +124,31 @@ unless database_type
   end
 end
 
-unless ['oracle', 'sqlserver'].include?(database_type)
-  puts "Invalid database type: #{database_type}. Must be 'oracle' or 'sqlserver'."
+unless ['postgresql', 'oracle', 'sqlserver'].include?(database_type)
+  puts "Invalid database type: #{database_type}. Must be 'oracle', 'sqlserver', or 'postgresql'."
   exit!
 end
 
-unless user && pass
+unless user
+  puts "You must specify a user with the -u option."
+  exit!
+end
+
+# For PostgreSQL, password is optional (can use pg_hba.conf trust authentication)
+# For Oracle and SQL Server, password is required unless using dbrc
+unless pass || database_type == 'postgresql'
   begin
     dbrc = DBI::DBRC.new(opts['database'], user)
     user = dbrc.user
     pass = dbrc.passwd
   rescue NameError
-    msg = "If you do not specify a username or password on the command line "
+    msg = "If you do not specify a password on the command line "
     msg << "then you must use the dbi-dbrc library and create a .dbrc file in "
     msg << "your home directory."
     puts msg
     exit!
   rescue DBI::DBRC::Error
-    msg = "No user or password provided, and no dbrc entry found for '"
+    msg = "No password provided, and no dbrc entry found for '"
     msg << opts['database'] + "'."
     puts msg
     exit!
@@ -169,6 +182,20 @@ begin
       port: port.to_i,
       database: opts['database']
     )
+  when 'postgresql'
+    require 'pg'
+    server = opts['server'] || 'localhost'
+    port = opts['port'] || 5432
+
+    conn_params = {
+      host: server,
+      port: port.to_i,
+      dbname: opts['database'],
+      user: user
+    }
+    conn_params[:password] = pass if pass
+
+    connection = PG.connect(conn_params)
   end
 rescue LoadError => e
   case database_type
@@ -176,6 +203,8 @@ rescue LoadError => e
     puts "Oracle support requires the 'oci8' gem. Install with: gem install oci8"
   when 'sqlserver'
     puts "SQL Server support requires the 'tiny_tds' gem. Install with: gem install tiny_tds"
+  when 'postgresql'
+    puts "PostgreSQL support requires the 'pg' gem. Install with: gem install pg"
   end
   exit!
 rescue => e
@@ -312,6 +341,7 @@ File.open(ofile, 'w') do |fh|
   if rails == 2
     # Character fields, size
     omg.column_info.each{ |col|
+      next if omg.primary_keys.map(&:downcase).include?(col.name.downcase) # Skip primary keys
       data_type = col.data_type.to_s
       if ['char', 'varchar', 'varchar2'].include?(data_type)
         validation = "validates_size_of :#{col.name.downcase}, :maximum => #{col.data_size}"
@@ -324,6 +354,7 @@ File.open(ofile, 'w') do |fh|
 
     # Fields that must be present
     omg.column_info.each{ |col|
+      next if omg.primary_keys.map(&:downcase).include?(col.name.downcase) # Skip primary keys
       unless col.nullable?
         validation = "validates_presence_of :#{col.name.downcase}"
         fh.puts "  #{validation}"
@@ -334,6 +365,7 @@ File.open(ofile, 'w') do |fh|
 
     # Numeric fields
     omg.column_info.each{ |col|
+      next if omg.primary_keys.map(&:downcase).include?(col.name.downcase) # Skip primary keys
       if col.data_type.to_s == 'number'
         max = ("9" * (col.precision - col.scale)).to_i
 
@@ -350,11 +382,12 @@ File.open(ofile, 'w') do |fh|
   else
     # Character fields, size
     omg.column_info.each{ |col|
+      next if omg.primary_keys.map(&:downcase).include?(col.name.downcase) # Skip primary keys
 
-      data_type = col.data_type.to_s
+      data_type = col.data_type.to_s.downcase
 
       case data_type
-        when 'char', 'varchar', 'varchar2'
+        when 'char', 'varchar', 'varchar2', 'character varying', 'text', 'bpchar'
           validation = "validates :#{col.name.downcase}, "
           validation << ":length => {:maximum => #{col.data_size}}"
 
@@ -369,26 +402,55 @@ File.open(ofile, 'w') do |fh|
           validation << format_str
           validation << ",\n    :presence => #{!col.nullable?}" unless col.nullable?
           validation << "\n\n"
-        when 'number'
-          max = "9" * col.precision
-          max.insert(col.precision - col.scale, ".") if col.scale > 0
+        when 'number', 'integer', 'bigint', 'smallint', 'numeric', 'decimal', 'real', 'double precision'
+          # For PostgreSQL numeric types
+          if ['integer', 'bigint', 'smallint'].include?(data_type)
+            # Integer types
+            max = case data_type
+                  when 'smallint' then 32767
+                  when 'integer' then 2147483647
+                  when 'bigint' then 9223372036854775807
+                  end
 
-          validation = "\n  validates :#{col.name.downcase}"
+            validation = "\n  validates :#{col.name.downcase}"
 
-          unless col.nullable?
-            validation << ", :presence => #{!col.nullable?}"
-          end
-
-          unless max.empty?
-            validation << ", :numericality => {"
-            validation << "\n    :less_than_or_equal_to => #{max}, "
-            validation << "\n    :greater_than_or_equal_to => -#{max}"
-
-            if col.scale == 0
-              validation << ",\n    :only_integer => true"
+            unless col.nullable?
+              validation << ", :presence => #{!col.nullable?}"
             end
 
-            validation << "\n  }\n\n"
+            if max
+              validation << ", :numericality => {"
+              validation << "\n    :less_than_or_equal_to => #{max}, "
+              validation << "\n    :greater_than_or_equal_to => -#{max},"
+              validation << "\n    :only_integer => true"
+              validation << "\n  }\n\n"
+            end
+          elsif data_type == 'number' || ['numeric', 'decimal', 'real', 'double precision'].include?(data_type)
+            # Oracle NUMBER or PostgreSQL decimal types
+            validation = "\n  validates :#{col.name.downcase}"
+
+            unless col.nullable?
+              validation << ", :presence => #{!col.nullable?}"
+            end
+
+            if col.respond_to?(:precision) && col.precision
+              max = "9" * col.precision
+              max.insert(col.precision - (col.scale || 0), ".") if col.scale && col.scale > 0
+
+              unless max.empty?
+                validation << ", :numericality => {"
+                validation << "\n    :less_than_or_equal_to => #{max}, "
+                validation << "\n    :greater_than_or_equal_to => -#{max}"
+
+                if col.scale == 0
+                  validation << ",\n    :only_integer => true"
+                end
+
+                validation << "\n  }\n\n"
+              end
+            else
+              validation << ", :numericality => true\n\n"
+            end
           end
 
       end
@@ -402,23 +464,21 @@ File.open(ofile, 'w') do |fh|
 
   # Date fields
   omg.column_info.each{ |col|
-    data_type = col.data_type.to_s
+    next if omg.primary_keys.map(&:downcase).include?(col.name.downcase) # Skip primary keys
+    data_type = col.data_type.to_s.downcase
 
-    if ['date', 'time', 'datetime'].include?(data_type)
+    if ['date', 'time', 'datetime', 'timestamp', 'timestamp without time zone', 'timestamp with time zone', 'time without time zone', 'time with time zone'].include?(data_type)
       if data_type == 'date'
         validation = "validates_date :#{col.name.downcase}"
-      end
-
-      if data_type == 'timestamp'
+      elsif data_type =~ /^time/
         validation = "validates_time :#{col.name.downcase}"
-      end
-
-      if data_type == 'datetime'
+      elsif data_type =~ /timestamp|datetime/
         validation = "validates_datetime :#{col.name.downcase}"
       end
 
       unless header_printed
         fh.puts "  # Requires the validates_timeliness library"
+        header_printed = true
       end
 
       fh.puts "  #{validation}"

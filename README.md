@@ -1,7 +1,7 @@
 ## Description
 A library for generating an ActiveRecord model from an existing database table.
 
-Currently supports both Oracle and SQL Server databases.
+Currently supports Oracle, SQL Server, and PostgreSQL databases.
 
 This will install a "dmg" (Database Model Generator) executable that you can
 use from the command line.
@@ -9,7 +9,7 @@ use from the command line.
 ## Renamed
 Originally called "oracle-model-generator" and put into the dust bin, I've
 decided to revive this library with the help of AI. Specifically, I've added
-SQLServer support, and plan to add Postgres support.
+SQLServer and PostgreSQL support, and plan to add more features.
 
 I also plan on lots of improvements, and some general refactoring.
 
@@ -21,6 +21,9 @@ Using the command line tool:
 
 ### SQL Server:
 `dmg -T sqlserver -s localhost -d your_database -t locations -u sa -p your_password`
+
+### PostgreSQL:
+`dmg -T postgresql -h localhost -d your_database -t locations -u postgres [-p password]`
 
 ### Auto-detection:
 # Oracle (default)
@@ -124,6 +127,9 @@ end
 ### SQLServer
 * tiny_tds
 
+### PostgreSQL
+* pg
+
 ## Running the specs
 ### Oracle:
 Run `cd docker/oracle && docker-compose run --rm oracle-model-generator bundle exec rspec`.
@@ -133,6 +139,10 @@ with database client libraries.
 
 ### SQL Server:
 Run `cd docker/sqlserver && ./test.sh` to start SQL Server, then run tests.
+
+### PostgreSQL:
+Run `cd docker/postgresql && docker-compose up -d postgres-db` to start PostgreSQL,
+then run `docker-compose run --rm dmg_test` to execute tests.
 
 Again, no guarantees on MacOS.
 
@@ -149,19 +159,23 @@ If you want date format validations, then you will need to install the
 ## Database Support
 * **Oracle**: Full support via ruby-oci8
 * **SQL Server**: Full support via tiny_tds
+* **PostgreSQL**: Full support via pg
 * **Auto-detection**: Automatically detects database type based on connection parameters
 
 ## Author's Comments
 Originally focused only on Oracle, this library has been expanded to support
-SQL Server as well. The architecture now supports multiple database vendors,
-and I will probably add Postgres support in the future.
+SQL Server and PostgreSQL as well. The architecture now supports multiple
+database vendors, making it easy to add support for additional databases in
+the future.
 
 ## Current Features
-* **Multi-database support**: Oracle and SQL Server
+* **Multi-database support**: Oracle, SQL Server, and PostgreSQL
 * **Auto-detection**: Automatically detects database type
 * **Index recommendations**: Suggests optimal indexes for your tables
 * **Multiple test frameworks**: Supports test-unit, minitest, and rspec
-* **Docker support**: Complete Docker environments for testing both databases
+* **Docker support**: Complete Docker environments for testing all databases
+* **Enum detection**: Automatically detects enum columns from CHECK constraints
+* **Polymorphic associations**: Identifies polymorphic relationship patterns
 
 ## Future Plans (originally)
 * Add support for views.

@@ -1,3 +1,11 @@
+## 0.7.0 - 21-Dec-2025
+* Added full PostgreSQL support via the pg gem.
+* Created PostgreSQL generator implementation with all features.
+* Added PostgreSQL Docker setup for testing.
+* Added comprehensive PostgreSQL test suite.
+* Updated documentation to include PostgreSQL examples.
+* Added pg gem as development dependency.
+
 ## 0.6.1 - 28-Jul-2025
 * Added "datetime" field for validates_timeliness.
 * Added validates_timeliness as a development dependency.

@@ -1,0 +1,20 @@
+FROM ruby:3.2-alpine
+
+# Install build dependencies
+RUN apk add --no-cache \
+    build-base \
+    postgresql-dev \
+    postgresql-client \
+    git
+
+# Set working directory
+WORKDIR /app
+
+# Copy application files
+COPY . .
+
+# Install dependencies
+RUN bundle install
+
+# Run tests
+CMD ["bundle", "exec", "rspec", "spec/postgresql_model_generator_spec.rb"]
