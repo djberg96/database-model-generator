@@ -1,4 +1,4 @@
-## 0.7.0 - 21-Dec-2025
+## 0.7.0 - 22-Dec-2025
 * Added full PostgreSQL support via the pg gem.
 * Created PostgreSQL generator implementation with all features.
 * Added PostgreSQL Docker setup for testing.
