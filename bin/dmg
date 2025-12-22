@@ -110,6 +110,7 @@ pass = opts['password']
 
 # Determine database type
 database_type = opts['type']&.downcase
+
 unless database_type
   if opts['server'] || opts['port']
     database_type = 'sqlserver'
@@ -118,8 +119,8 @@ unless database_type
   end
 end
 
-unless ['oracle', 'sqlserver'].include?(database_type)
-  puts "Invalid database type: #{database_type}. Must be 'oracle' or 'sqlserver'."
+unless ['postgresql', 'oracle', 'sqlserver'].include?(database_type)
+  puts "Invalid database type: #{database_type}. Must be 'oracle', 'sqlserver', or 'postgresql'."
   exit!
 end
 
